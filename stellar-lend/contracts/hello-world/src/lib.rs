@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, Address, Env, Map, Symbol, String};
+use soroban_sdk::{contract, contractimpl, Address, Env, Map, String, Symbol};
 
 mod deposit;
 mod risk_management;
@@ -8,9 +8,9 @@ use deposit::deposit_collateral;
 use risk_management::{
     can_be_liquidated, get_close_factor, get_liquidation_incentive,
     get_liquidation_incentive_amount, get_liquidation_threshold, get_max_liquidatable_amount,
-    get_min_collateral_ratio, initialize_risk_management, is_emergency_paused,
-    is_operation_paused, require_min_collateral_ratio, set_emergency_pause, set_pause_switch,
-    set_pause_switches, set_risk_params, RiskConfig, RiskManagementError,
+    get_min_collateral_ratio, initialize_risk_management, is_emergency_paused, is_operation_paused,
+    require_min_collateral_ratio, set_emergency_pause, set_pause_switch, set_pause_switches,
+    set_risk_params, RiskConfig, RiskManagementError,
 };
 
 #[contract]
@@ -140,7 +140,11 @@ impl HelloContract {
     ///
     /// # Returns
     /// Returns Ok(()) on success
-    pub fn set_emergency_pause(env: Env, caller: Address, paused: bool) -> Result<(), RiskManagementError> {
+    pub fn set_emergency_pause(
+        env: Env,
+        caller: Address,
+        paused: bool,
+    ) -> Result<(), RiskManagementError> {
         set_emergency_pause(&env, caller, paused)
     }
 
@@ -227,7 +231,11 @@ impl HelloContract {
     ///
     /// # Returns
     /// Returns true if position can be liquidated
-    pub fn can_be_liquidated(env: Env, collateral_value: i128, debt_value: i128) -> Result<bool, RiskManagementError> {
+    pub fn can_be_liquidated(
+        env: Env,
+        collateral_value: i128,
+        debt_value: i128,
+    ) -> Result<bool, RiskManagementError> {
         can_be_liquidated(&env, collateral_value, debt_value)
     }
 
@@ -238,7 +246,10 @@ impl HelloContract {
     ///
     /// # Returns
     /// Maximum amount that can be liquidated
-    pub fn get_max_liquidatable_amount(env: Env, debt_value: i128) -> Result<i128, RiskManagementError> {
+    pub fn get_max_liquidatable_amount(
+        env: Env,
+        debt_value: i128,
+    ) -> Result<i128, RiskManagementError> {
         get_max_liquidatable_amount(&env, debt_value)
     }
 
@@ -249,7 +260,10 @@ impl HelloContract {
     ///
     /// # Returns
     /// Liquidation incentive amount
-    pub fn get_liquidation_incentive_amount(env: Env, liquidated_amount: i128) -> Result<i128, RiskManagementError> {
+    pub fn get_liquidation_incentive_amount(
+        env: Env,
+        liquidated_amount: i128,
+    ) -> Result<i128, RiskManagementError> {
         get_liquidation_incentive_amount(&env, liquidated_amount)
     }
 }

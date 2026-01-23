@@ -118,10 +118,10 @@ pub fn initialize_risk_management(env: &Env, admin: Address) -> Result<(), RiskM
 
     // Initialize default risk config
     let default_config = RiskConfig {
-        min_collateral_ratio: 11_000, // 110% default
+        min_collateral_ratio: 11_000,  // 110% default
         liquidation_threshold: 10_500, // 105% default
-        close_factor: 5_000, // 50% default
-        liquidation_incentive: 1_000, // 10% default
+        close_factor: 5_000,           // 50% default
+        liquidation_incentive: 1_000,  // 10% default
         pause_switches: create_default_pause_switches(env),
         last_update: env.ledger().timestamp(),
     };
@@ -387,17 +387,17 @@ pub fn set_pause_switches(
 /// Check if an operation is paused
 pub fn is_operation_paused(env: &Env, operation: Symbol) -> bool {
     if let Some(config) = get_risk_config(env) {
-        config
-            .pause_switches
-            .get(operation)
-            .unwrap_or(false)
+        config.pause_switches.get(operation).unwrap_or(false)
     } else {
         false
     }
 }
 
 /// Require that an operation is not paused
-pub fn require_operation_not_paused(env: &Env, operation: Symbol) -> Result<(), RiskManagementError> {
+pub fn require_operation_not_paused(
+    env: &Env,
+    operation: Symbol,
+) -> Result<(), RiskManagementError> {
     if is_operation_paused(env, operation.clone()) {
         return Err(RiskManagementError::OperationPaused);
     }
@@ -537,7 +537,10 @@ pub fn can_be_liquidated(
 ///
 /// # Returns
 /// Maximum amount that can be liquidated
-pub fn get_max_liquidatable_amount(env: &Env, debt_value: i128) -> Result<i128, RiskManagementError> {
+pub fn get_max_liquidatable_amount(
+    env: &Env,
+    debt_value: i128,
+) -> Result<i128, RiskManagementError> {
     let config = get_risk_config(env).ok_or(RiskManagementError::InvalidParameter)?;
 
     // Calculate: debt * close_factor / BASIS_POINTS_SCALE
@@ -617,12 +620,7 @@ fn emit_risk_params_updated_event(env: &Env, caller: &Address, config: &RiskConf
 }
 
 /// Emit pause switch updated event
-fn emit_pause_switch_updated_event(
-    env: &Env,
-    caller: &Address,
-    operation: &Symbol,
-    paused: bool,
-) {
+fn emit_pause_switch_updated_event(env: &Env, caller: &Address, operation: &Symbol, paused: bool) {
     let topics = (Symbol::new(env, "pause_switch_updated"), caller.clone());
     let mut data: Vec<Val> = Vec::new(env);
     data.push_back(Symbol::new(env, "caller").into_val(env));
@@ -636,11 +634,7 @@ fn emit_pause_switch_updated_event(
 }
 
 /// Emit pause switches updated event
-fn emit_pause_switches_updated_event(
-    env: &Env,
-    caller: &Address,
-    switches: &Map<Symbol, bool>,
-) {
+fn emit_pause_switches_updated_event(env: &Env, caller: &Address, switches: &Map<Symbol, bool>) {
     let topics = (Symbol::new(env, "pause_switches_updated"), caller.clone());
     let mut data: Vec<Val> = Vec::new(env);
     data.push_back(Symbol::new(env, "caller").into_val(env));

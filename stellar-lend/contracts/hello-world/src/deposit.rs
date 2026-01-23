@@ -189,7 +189,7 @@ pub fn deposit_collateral(
             }
         }
     }
-    
+
     // Check risk management emergency pause and operation pause
     // We access the risk management storage directly to check pause status
     check_risk_management_pause(env)?;
@@ -524,7 +524,7 @@ fn check_risk_management_pause(env: &Env) -> Result<(), DepositError> {
         RiskConfig,
         EmergencyPause,
     }
-    
+
     // Check emergency pause first
     let emergency_key = RiskDataKey::EmergencyPause;
     if let Some(emergency_paused) = env
@@ -536,12 +536,12 @@ fn check_risk_management_pause(env: &Env) -> Result<(), DepositError> {
             return Err(DepositError::DepositPaused);
         }
     }
-    
+
     // Check operation-specific pause in risk config
     // Note: We need to access the RiskConfig struct, but to avoid circular dependencies,
     // we'll check if the config exists and try to read pause_switches
     // For now, we'll skip this check and rely on the old pause switch system
     // The risk management pause switches should be checked at the contract API level
-    
+
     Ok(())
 }

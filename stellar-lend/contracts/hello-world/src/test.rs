@@ -529,7 +529,7 @@ fn test_initialize_risk_management() {
     let pause_borrow = Symbol::new(&env, "pause_borrow");
     let pause_repay = Symbol::new(&env, "pause_repay");
     let pause_liquidate = Symbol::new(&env, "pause_liquidate");
-    
+
     assert!(!client.is_operation_paused(&pause_deposit));
     assert!(!client.is_operation_paused(&pause_withdraw));
     assert!(!client.is_operation_paused(&pause_borrow));
@@ -550,15 +550,13 @@ fn test_set_risk_params_success() {
     client.initialize(&admin);
 
     // Update risk parameters (all within 10% change limit)
-    client
-        .set_risk_params(
-            &admin,
-            &Some(12_000), // min_collateral_ratio: 120% (9.09% increase from 11,000)
-            &Some(11_000), // liquidation_threshold: 110% (4.76% increase from 10,500)
-            &Some(5_500),  // close_factor: 55% (10% increase from 5,000)
-            &Some(1_100),  // liquidation_incentive: 11% (10% increase from 1,000)
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &Some(12_000), // min_collateral_ratio: 120% (9.09% increase from 11,000)
+        &Some(11_000), // liquidation_threshold: 110% (4.76% increase from 10,500)
+        &Some(5_500),  // close_factor: 55% (10% increase from 5,000)
+        &Some(1_100),  // liquidation_incentive: 11% (10% increase from 1,000)
+    );
 
     // Verify updated values
     assert_eq!(client.get_min_collateral_ratio(), 12_000);
@@ -580,15 +578,7 @@ fn test_set_risk_params_unauthorized() {
     client.initialize(&admin);
 
     // Try to set risk params as non-admin
-    client
-        .set_risk_params(
-            &non_admin,
-            &Some(12_000),
-            &None,
-            &None,
-            &None,
-        )
-        ;
+    client.set_risk_params(&non_admin, &Some(12_000), &None, &None, &None);
 }
 
 #[test]
@@ -604,15 +594,13 @@ fn test_set_risk_params_invalid_min_collateral_ratio() {
     // Try to set invalid min collateral ratio (too low)
     // This will fail with ParameterChangeTooLarge because the change from 11,000 to 5,000
     // exceeds the 10% change limit (max change is 1,100)
-    client
-        .set_risk_params(
-            &admin,
-            &Some(5_000), // Below minimum (10,000) and exceeds change limit
-            &None,
-            &None,
-            &None,
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &Some(5_000), // Below minimum (10,000) and exceeds change limit
+        &None,
+        &None,
+        &None,
+    );
 }
 
 #[test]
@@ -626,15 +614,13 @@ fn test_set_risk_params_min_cr_below_liquidation_threshold() {
     client.initialize(&admin);
 
     // Try to set min collateral ratio below liquidation threshold
-    client
-        .set_risk_params(
-            &admin,
-            &Some(10_000), // min_collateral_ratio: 100%
-            &Some(10_500), // liquidation_threshold: 105% (higher than min_cr)
-            &None,
-            &None,
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &Some(10_000), // min_collateral_ratio: 100%
+        &Some(10_500), // liquidation_threshold: 105% (higher than min_cr)
+        &None,
+        &None,
+    );
 }
 
 #[test]
@@ -655,15 +641,13 @@ fn test_set_risk_params_invalid_close_factor() {
     // Actually, let's test with a value that's over the max: 10,001, but this exceeds change limit
     // The test should check InvalidCloseFactor, but change limit is checked first
     // So we'll expect ParameterChangeTooLarge
-    client
-        .set_risk_params(
-            &admin,
-            &None,
-            &None,
-            &Some(10_001), // 100.01% (over 100% max, but change from 5,000 is 5,001 which exceeds limit)
-            &None,
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &None,
+        &None,
+        &Some(10_001), // 100.01% (over 100% max, but change from 5,000 is 5,001 which exceeds limit)
+        &None,
+    );
 }
 
 #[test]
@@ -680,15 +664,13 @@ fn test_set_risk_params_invalid_liquidation_incentive() {
     // Default is 1,000, max change is 100 (10%), so we can go up to 1,100
     // But we want to test invalid value, so we'll use 5,001 which exceeds max but also exceeds change limit
     // So it will fail with ParameterChangeTooLarge
-    client
-        .set_risk_params(
-            &admin,
-            &None,
-            &None,
-            &None,
-            &Some(5_001), // 50.01% (over 50% max, but change from 1,000 is 4,001 which exceeds limit)
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &None,
+        &None,
+        &None,
+        &Some(5_001), // 50.01% (over 50% max, but change from 1,000 is 4,001 which exceeds limit)
+    );
 }
 
 #[test]
@@ -704,15 +686,13 @@ fn test_set_risk_params_change_too_large() {
     // Default min_collateral_ratio is 11,000 (110%)
     // Max change is 10% = 1,100
     // Try to change by more than 10% (change to 15,000 = change of 4,000)
-    client
-        .set_risk_params(
-            &admin,
-            &Some(15_000), // Change of 4,000 (36%) exceeds 10% limit
-            &None,
-            &None,
-            &None,
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &Some(15_000), // Change of 4,000 (36%) exceeds 10% limit
+        &None,
+        &None,
+        &None,
+    );
 }
 
 #[test]
@@ -726,25 +706,13 @@ fn test_set_pause_switch_success() {
 
     // Pause deposit operation
     let pause_deposit_sym = Symbol::new(&env, "pause_deposit");
-    client
-        .set_pause_switch(
-            &admin,
-            &pause_deposit_sym,
-            &true,
-        )
-        ;
+    client.set_pause_switch(&admin, &pause_deposit_sym, &true);
 
     // Verify pause is active
     assert!(client.is_operation_paused(&pause_deposit_sym));
 
     // Unpause
-    client
-        .set_pause_switch(
-            &admin,
-            &pause_deposit_sym,
-            &false,
-        )
-        ;
+    client.set_pause_switch(&admin, &pause_deposit_sym, &false);
 
     // Verify pause is inactive
     assert!(!client.is_operation_paused(&pause_deposit_sym));
@@ -763,13 +731,7 @@ fn test_set_pause_switch_unauthorized() {
     client.initialize(&admin);
 
     // Try to set pause switch as non-admin
-    client
-        .set_pause_switch(
-            &non_admin,
-            &Symbol::new(&env, "pause_deposit"),
-            &true,
-        )
-        ;
+    client.set_pause_switch(&non_admin, &Symbol::new(&env, "pause_deposit"), &true);
 }
 
 #[test]
@@ -861,9 +823,7 @@ fn test_require_min_collateral_ratio_failure() {
 
     // Default min_collateral_ratio is 11,000 (110%)
     // Collateral: 1,000, Debt: 1,000 -> Ratio: 100% (below 110% requirement)
-    client
-        .require_min_collateral_ratio(&1_000, &1_000)
-        ;
+    client.require_min_collateral_ratio(&1_000, &1_000);
 }
 
 #[test]
@@ -901,15 +861,13 @@ fn test_get_max_liquidatable_amount() {
     assert_eq!(max_liquidatable, 500);
 
     // Update close_factor to 55% (within 10% change limit: 5,000 * 1.1 = 5,500)
-    client
-        .set_risk_params(
-            &admin,
-            &None,
-            &None,
-            &Some(5_500), // 55% (10% increase from 50%)
-            &None,
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &None,
+        &None,
+        &Some(5_500), // 55% (10% increase from 50%)
+        &None,
+    );
 
     // Debt: 1,000 -> Max liquidatable: 550 (55%)
     let max_liquidatable = client.get_max_liquidatable_amount(&1_000);
@@ -931,15 +889,13 @@ fn test_get_liquidation_incentive_amount() {
     assert_eq!(incentive, 100);
 
     // Update liquidation_incentive to 11% (within 10% change limit: 1,000 * 1.1 = 1,100)
-    client
-        .set_risk_params(
-            &admin,
-            &None,
-            &None,
-            &None,
-            &Some(1_100), // 11% (10% increase from 10%)
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &None,
+        &None,
+        &None,
+        &Some(1_100), // 11% (10% increase from 10%)
+    );
 
     // Liquidated amount: 1,000 -> Incentive: 110 (11%)
     let incentive = client.get_liquidation_incentive_amount(&1_000);
@@ -956,15 +912,13 @@ fn test_risk_params_partial_update() {
     client.initialize(&admin);
 
     // Update only min_collateral_ratio
-    client
-        .set_risk_params(
-            &admin,
-            &Some(12_000), // Only update this
-            &None,
-            &None,
-            &None,
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &Some(12_000), // Only update this
+        &None,
+        &None,
+        &None,
+    );
 
     // Verify only min_collateral_ratio changed
     assert_eq!(client.get_min_collateral_ratio(), 12_000);
@@ -989,15 +943,13 @@ fn test_risk_params_edge_cases() {
     // But minimum allowed is 10,000, so we can only go to 10,000 (change of 1,000 = 9.09%)
     // Default liquidation_threshold is 10,500, max decrease is 1,050 (10%), so min is 9,450
     // But minimum allowed is 10,000, so we can only go to 10,000 (change of 500 = 4.76%)
-    client
-        .set_risk_params(
-            &admin,
-            &Some(10_000), // 100% (minimum allowed, 9.09% decrease from 11,000)
-            &Some(10_000), // 100% (minimum allowed, 4.76% decrease from 10,500)
-            &Some(4_500),  // 45% (10% decrease from 5,000 = 500, so 5,000 - 500 = 4,500)
-            &Some(900),    // 9% (10% decrease from 1,000 = 100, so 1,000 - 100 = 900)
-        )
-        ;
+    client.set_risk_params(
+        &admin,
+        &Some(10_000), // 100% (minimum allowed, 9.09% decrease from 11,000)
+        &Some(10_000), // 100% (minimum allowed, 4.76% decrease from 10,500)
+        &Some(4_500),  // 45% (10% decrease from 5,000 = 500, so 5,000 - 500 = 4,500)
+        &Some(900),    // 9% (10% decrease from 1,000 = 100, so 1,000 - 100 = 900)
+    );
 
     assert_eq!(client.get_min_collateral_ratio(), 10_000);
     assert_eq!(client.get_liquidation_threshold(), 10_000);
@@ -1025,26 +977,14 @@ fn test_pause_switch_all_operations() {
 
     for op in operations.iter() {
         let op_sym = Symbol::new(&env, op);
-        client
-            .set_pause_switch(
-                &admin,
-                &op_sym,
-                &true,
-            )
-            ;
+        client.set_pause_switch(&admin, &op_sym, &true);
         assert!(client.is_operation_paused(&op_sym));
     }
 
     // Unpause all
     for op in operations.iter() {
         let op_sym = Symbol::new(&env, op);
-        client
-            .set_pause_switch(
-                &admin,
-                &op_sym,
-                &false,
-            )
-            ;
+        client.set_pause_switch(&admin, &op_sym, &false);
         assert!(!client.is_operation_paused(&op_sym));
     }
 }
