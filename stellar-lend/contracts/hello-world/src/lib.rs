@@ -22,6 +22,12 @@ use repay::repay_debt;
 mod borrow;
 use borrow::borrow_asset;
 
+mod analytics;
+use analytics::{
+    generate_protocol_report, generate_user_report, get_recent_activity, get_user_activity_feed,
+    AnalyticsError, ProtocolReport, UserReport,
+};
+
 #[contract]
 pub struct HelloContract;
 
@@ -359,6 +365,31 @@ impl HelloContract {
     /// - `user_activity_tracked`: User activity tracking event
     pub fn borrow_asset(env: Env, user: Address, asset: Option<Address>, amount: i128) -> i128 {
         borrow_asset(&env, user, asset, amount).unwrap_or_else(|e| panic!("Borrow error: {:?}", e))
+    }
+
+    pub fn get_protocol_report(env: Env) -> Result<ProtocolReport, AnalyticsError> {
+        generate_protocol_report(&env)
+    }
+
+    pub fn get_user_report(env: Env, user: Address) -> Result<UserReport, AnalyticsError> {
+        generate_user_report(&env, &user)
+    }
+
+    pub fn get_recent_activity(
+        env: Env,
+        limit: u32,
+        offset: u32,
+    ) -> Result<soroban_sdk::Vec<analytics::ActivityEntry>, AnalyticsError> {
+        get_recent_activity(&env, limit, offset)
+    }
+
+    pub fn get_user_activity(
+        env: Env,
+        user: Address,
+        limit: u32,
+        offset: u32,
+    ) -> Result<soroban_sdk::Vec<analytics::ActivityEntry>, AnalyticsError> {
+        get_user_activity_feed(&env, &user, limit, offset)
     }
 }
 
