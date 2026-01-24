@@ -1,7 +1,7 @@
-use super::*;
+use crate::{deposit, HelloContract, HelloContractClient};
 use soroban_sdk::{testutils::Address as _, token, Address, Env, Symbol};
 
-use deposit::{DepositDataKey, Position, ProtocolAnalytics, UserAnalytics};
+use crate::deposit::{DepositDataKey, Position, ProtocolAnalytics, UserAnalytics};
 
 /// Helper function to create a test environment
 fn create_test_env() -> Env {

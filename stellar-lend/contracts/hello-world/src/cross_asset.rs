@@ -227,7 +227,7 @@ pub fn update_asset_config(
 /// * `asset` - Asset to update price for (None for XLM)
 /// * `price` - New price in base units (7 decimals)
 pub fn update_asset_price(
-    env: &Env, 
+    env: &Env,
     asset: Option<Address>,
     price: i128,
 ) -> Result<(), CrossAssetError> {

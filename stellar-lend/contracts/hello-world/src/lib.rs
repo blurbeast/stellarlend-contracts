@@ -714,11 +714,9 @@ impl HelloContract {
 
     /// Get unified position summary across all assets
     /// Returns total collateral, debt, health factor, and liquidation status
-    pub fn get_user_position_summary(
-        env: Env,
-        user: Address,
-    ) -> Result<UserPositionSummary, CrossAssetError> {
+    pub fn get_user_position_summary(env: Env, user: Address) -> UserPositionSummary {
         get_user_position_summary(&env, &user)
+            .unwrap_or_else(|e| panic!("User position summary error: {:?}", e))
     }
 
     /// Deposit collateral with supply cap validation
@@ -778,4 +776,7 @@ impl HelloContract {
 }
 
 #[cfg(test)]
-mod test;
+mod tests {
+    mod test;
+    mod test_cross_asset;
+}
