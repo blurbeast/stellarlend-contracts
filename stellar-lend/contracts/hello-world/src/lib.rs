@@ -22,12 +22,12 @@ use repay::repay_debt;
 mod borrow;
 use borrow::borrow_asset;
 
-mod governance;
-use governance::{
-    approve_proposal, create_proposal, execute_multisig_proposal, execute_proposal,
-    get_multisig_admins, get_multisig_threshold, get_proposal, get_proposal_approvals, get_vote,
-    initialize_governance, mark_proposal_failed, propose_set_min_collateral_ratio, set_multisig_admins,
-    set_multisig_threshold, GovernanceError, Proposal, ProposalStatus, ProposalType, Vote,
+mod oracle;
+use oracle::{configure_oracle, get_price, set_fallback_oracle, update_price_feed, OracleConfig};
+
+mod flash_loan;
+use flash_loan::{
+    configure_flash_loan, execute_flash_loan, repay_flash_loan, set_flash_loan_fee, FlashLoanConfig,
 };
 
 #[contract]
@@ -371,221 +371,134 @@ impl HelloContract {
         borrow_asset(&env, user, asset, amount).unwrap_or_else(|e| panic!("Borrow error: {:?}", e))
     }
 
-    // ============================================================================
-    // Governance Functions
-    // ============================================================================
-
-    /// Create a new governance proposal
+    /// Update price feed from oracle
+    ///
+    /// Updates the price for an asset from an oracle source with validation.
     ///
     /// # Arguments
-    /// * `proposer` - The address creating the proposal
-    /// * `proposal_type` - The type of proposal
-    /// * `description` - Description of the proposal
-    /// * `voting_period` - Optional voting period in seconds (default: 7 days)
-    /// * `execution_timelock` - Optional execution timelock in seconds (default: 2 days)
-    /// * `voting_threshold` - Optional voting threshold in basis points (default: 50%)
+    /// * `caller` - The address calling this function (must be admin or oracle)
+    /// * `asset` - The asset address
+    /// * `price` - The new price
+    /// * `decimals` - Price decimals
+    /// * `oracle` - The oracle address providing this price
     ///
     /// # Returns
-    /// Returns the proposal ID on success
-    pub fn gov_create_proposal(
-        env: Env,
-        proposer: Address,
-        proposal_type: ProposalType,
-        description: Symbol,
-        voting_period: Option<u64>,
-        execution_timelock: Option<u64>,
-        voting_threshold: Option<i128>,
-    ) -> Result<u64, GovernanceError> {
-        create_proposal(
-            &env,
-            proposer,
-            proposal_type,
-            description,
-            voting_period,
-            execution_timelock,
-            voting_threshold,
-        )
-    }
-
-    /// Vote on a proposal
+    /// Returns the updated price
     ///
-    /// # Arguments
-    /// * `voter` - The address voting
-    /// * `proposal_id` - The proposal ID
-    /// * `vote` - The vote (For, Against, or Abstain)
-    /// * `voting_power` - The voting power of the voter
-    ///
-    /// # Returns
-    /// Returns Ok(()) on success
-    pub fn gov_vote(
-        env: Env,
-        voter: Address,
-        proposal_id: u64,
-        vote: Vote,
-        voting_power: i128,
-    ) -> Result<(), GovernanceError> {
-        governance::vote(&env, voter, proposal_id, vote, voting_power)
-    }
-
-    /// Execute a proposal
-    ///
-    /// # Arguments
-    /// * `executor` - The address executing the proposal
-    /// * `proposal_id` - The proposal ID
-    ///
-    /// # Returns
-    /// Returns Ok(()) on success
-    pub fn gov_execute_proposal(
-        env: Env,
-        executor: Address,
-        proposal_id: u64,
-    ) -> Result<(), GovernanceError> {
-        execute_proposal(&env, executor, proposal_id)
-    }
-
-    /// Mark a proposal as failed
-    ///
-    /// # Arguments
-    /// * `proposal_id` - The proposal ID
-    ///
-    /// # Returns
-    /// Returns Ok(()) on success
-    pub fn gov_mark_proposal_failed(env: Env, proposal_id: u64) -> Result<(), GovernanceError> {
-        mark_proposal_failed(&env, proposal_id)
-    }
-
-    /// Get a proposal
-    ///
-    /// # Arguments
-    /// * `proposal_id` - The proposal ID
-    ///
-    /// # Returns
-    /// Returns the proposal or None if not found
-    pub fn gov_get_proposal(env: Env, proposal_id: u64) -> Option<Proposal> {
-        get_proposal(&env, proposal_id)
-    }
-
-    /// Get a vote for a voter on a proposal
-    ///
-    /// # Arguments
-    /// * `proposal_id` - The proposal ID
-    /// * `voter` - The voter address
-    ///
-    /// # Returns
-    /// Returns the vote or None if not found
-    pub fn gov_get_vote(env: Env, proposal_id: u64, voter: Address) -> Option<Vote> {
-        get_vote(&env, proposal_id, voter)
-    }
-
-    // ============================================================================
-    // Multisig Functions
-    // ============================================================================
-
-    /// Set multisig admins
-    ///
-    /// # Arguments
-    /// * `caller` - The caller address (must be current multisig admin)
-    /// * `admins` - The new list of multisig admins
-    ///
-    /// # Returns
-    /// Returns Ok(()) on success
-    pub fn ms_set_admins(
+    /// # Events
+    /// Emits `price_updated` event
+    pub fn update_price_feed(
         env: Env,
         caller: Address,
-        admins: Vec<Address>,
-    ) -> Result<(), GovernanceError> {
-        set_multisig_admins(&env, caller, admins)
+        asset: Address,
+        price: i128,
+        decimals: u32,
+        oracle: Address,
+    ) -> i128 {
+        update_price_feed(&env, caller, asset, price, decimals, oracle)
+            .unwrap_or_else(|e| panic!("Oracle error: {:?}", e))
     }
 
-    /// Set multisig threshold
+    /// Get price for an asset
+    ///
+    /// Retrieves the current price for an asset, using cache or fallback if needed.
     ///
     /// # Arguments
-    /// * `caller` - The caller address (must be multisig admin)
-    /// * `threshold` - The number of approvals required
+    /// * `asset` - The asset address
     ///
     /// # Returns
-    /// Returns Ok(()) on success
-    pub fn ms_set_threshold(
+    /// Returns the current price
+    pub fn get_price(env: Env, asset: Address) -> i128 {
+        get_price(&env, &asset).unwrap_or_else(|e| panic!("Oracle error: {:?}", e))
+    }
+
+    /// Set fallback oracle for an asset (admin only)
+    ///
+    /// # Arguments
+    /// * `caller` - The caller address (must be admin)
+    /// * `asset` - The asset address
+    /// * `fallback_oracle` - The fallback oracle address
+    pub fn set_fallback_oracle(
         env: Env,
         caller: Address,
-        threshold: u32,
-    ) -> Result<(), GovernanceError> {
-        set_multisig_threshold(&env, caller, threshold)
+        asset: Address,
+        fallback_oracle: Address,
+    ) {
+        set_fallback_oracle(&env, caller, asset, fallback_oracle)
+            .unwrap_or_else(|e| panic!("Oracle error: {:?}", e))
     }
 
-    /// Propose setting minimum collateral ratio (multisig)
+    /// Configure oracle parameters (admin only)
     ///
     /// # Arguments
-    /// * `proposer` - The proposer address (must be multisig admin)
-    /// * `new_ratio` - The new minimum collateral ratio in basis points
+    /// * `caller` - The caller address (must be admin)
+    /// * `config` - The new oracle configuration
+    pub fn configure_oracle(env: Env, caller: Address, config: OracleConfig) {
+        configure_oracle(&env, caller, config).unwrap_or_else(|e| panic!("Oracle error: {:?}", e))
+    }
+
+    /// Execute flash loan
+    ///
+    /// Allows users to borrow assets without collateral for a single transaction.
+    /// The loan must be repaid (with fee) within the same transaction.
+    ///
+    /// # Arguments
+    /// * `user` - The address borrowing the flash loan
+    /// * `asset` - The address of the asset contract to borrow
+    /// * `amount` - The amount to borrow
+    /// * `callback` - The callback contract address that will handle repayment
     ///
     /// # Returns
-    /// Returns the proposal ID on success
-    pub fn ms_propose_set_min_cr(
+    /// Returns the total amount to repay (principal + fee)
+    ///
+    /// # Events
+    /// Emits `flash_loan_initiated` event
+    pub fn execute_flash_loan(
         env: Env,
-        proposer: Address,
-        new_ratio: i128,
-    ) -> Result<u64, GovernanceError> {
-        propose_set_min_collateral_ratio(&env, proposer, new_ratio)
+        user: Address,
+        asset: Address,
+        amount: i128,
+        callback: Address,
+    ) -> i128 {
+        execute_flash_loan(&env, user, asset, amount, callback)
+            .unwrap_or_else(|e| panic!("Flash loan error: {:?}", e))
     }
 
-    /// Approve a multisig proposal
+    /// Repay flash loan
+    ///
+    /// Must be called within the same transaction as the flash loan.
+    /// Validates that the full amount (principal + fee) is repaid.
     ///
     /// # Arguments
-    /// * `approver` - The approver address (must be multisig admin)
-    /// * `proposal_id` - The proposal ID
+    /// * `user` - The address repaying the flash loan
+    /// * `asset` - The address of the asset contract
+    /// * `amount` - The amount being repaid (should equal principal + fee)
     ///
-    /// # Returns
-    /// Returns Ok(()) on success
-    pub fn ms_approve(
-        env: Env,
-        approver: Address,
-        proposal_id: u64,
-    ) -> Result<(), GovernanceError> {
-        approve_proposal(&env, approver, proposal_id)
+    /// # Events
+    /// Emits `flash_loan_repaid` event
+    pub fn repay_flash_loan(env: Env, user: Address, asset: Address, amount: i128) {
+        repay_flash_loan(&env, user, asset, amount)
+            .unwrap_or_else(|e| panic!("Flash loan error: {:?}", e))
     }
 
-    /// Execute a multisig proposal
+    /// Set flash loan fee (admin only)
     ///
     /// # Arguments
-    /// * `executor` - The executor address (must be multisig admin)
-    /// * `proposal_id` - The proposal ID
-    ///
-    /// # Returns
-    /// Returns Ok(()) on success
-    pub fn ms_execute(
-        env: Env,
-        executor: Address,
-        proposal_id: u64,
-    ) -> Result<(), GovernanceError> {
-        execute_multisig_proposal(&env, executor, proposal_id)
+    /// * `caller` - The caller address (must be admin)
+    /// * `fee_bps` - The new fee in basis points
+    pub fn set_flash_loan_fee(env: Env, caller: Address, fee_bps: i128) {
+        set_flash_loan_fee(&env, caller, fee_bps)
+            .unwrap_or_else(|e| panic!("Flash loan error: {:?}", e))
     }
 
-    /// Get multisig admins
-    ///
-    /// # Returns
-    /// Returns the list of multisig admins
-    pub fn ms_get_admins(env: Env) -> Option<Vec<Address>> {
-        get_multisig_admins(&env)
-    }
-
-    /// Get multisig threshold
-    ///
-    /// # Returns
-    /// Returns the multisig threshold
-    pub fn ms_get_threshold(env: Env) -> u32 {
-        get_multisig_threshold(&env)
-    }
-
-    /// Get proposal approvals
+    /// Configure flash loan parameters (admin only)
     ///
     /// # Arguments
-    /// * `proposal_id` - The proposal ID
-    ///
-    /// # Returns
-    /// Returns the list of approvers
-    pub fn ms_get_approvals(env: Env, proposal_id: u64) -> Option<Vec<Address>> {
-        get_proposal_approvals(&env, proposal_id)
+    /// * `caller` - The caller address (must be admin)
+    /// * `config` - The new flash loan configuration
+    pub fn configure_flash_loan(env: Env, caller: Address, config: FlashLoanConfig) {
+        configure_flash_loan(&env, caller, config)
+            .unwrap_or_else(|e| panic!("Flash loan error: {:?}", e))
     }
 }
 
