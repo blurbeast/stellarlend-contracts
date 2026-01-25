@@ -57,6 +57,9 @@ use flash_loan::{
     configure_flash_loan, execute_flash_loan, repay_flash_loan, set_flash_loan_fee, FlashLoanConfig,
 };
 
+mod liquidate;
+use liquidate::liquidate;
+
 #[contract]
 pub struct HelloContract;
 
@@ -910,6 +913,47 @@ impl HelloContract {
     pub fn configure_flash_loan(env: Env, caller: Address, config: FlashLoanConfig) {
         configure_flash_loan(&env, caller, config)
             .unwrap_or_else(|e| panic!("Flash loan error: {:?}", e))
+    }
+
+    /// Liquidate an undercollateralized position
+    ///
+    /// Allows liquidators to liquidate undercollateralized positions by:
+    /// - Repaying debt on behalf of the borrower
+    /// - Receiving collateral plus a liquidation incentive
+    ///
+    /// # Arguments
+    /// * `liquidator` - The address of the liquidator
+    /// * `borrower` - The address of the borrower being liquidated
+    /// * `debt_asset` - The address of the debt asset to repay (None for native XLM)
+    /// * `collateral_asset` - The address of the collateral asset to receive (None for native XLM)
+    /// * `debt_amount` - The amount of debt to liquidate
+    ///
+    /// # Returns
+    /// Returns a tuple (debt_liquidated, collateral_seized, incentive_amount)
+    ///
+    /// # Events
+    /// Emits the following events:
+    /// - `liquidation`: Liquidation transaction event
+    /// - `position_updated`: Borrower position update event
+    /// - `analytics_updated`: Analytics update event
+    /// - `user_activity_tracked`: User activity tracking event
+    pub fn liquidate(
+        env: Env,
+        liquidator: Address,
+        borrower: Address,
+        debt_asset: Option<Address>,
+        collateral_asset: Option<Address>,
+        debt_amount: i128,
+    ) -> (i128, i128, i128) {
+        liquidate(
+            &env,
+            liquidator,
+            borrower,
+            debt_asset,
+            collateral_asset,
+            debt_amount,
+        )
+        .unwrap_or_else(|e| panic!("Liquidation error: {:?}", e))
     }
 }
 
