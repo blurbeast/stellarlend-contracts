@@ -1,26 +1,24 @@
-#![no_std]
+
 use soroban_sdk::{contract, contractimpl, Address, Env, Map, String, Symbol};
 
+mod borrow;
 mod deposit;
+mod events;
+mod repay;
 mod risk_management;
+mod withdraw;
 
+use borrow::borrow_asset;
 use deposit::deposit_collateral;
+use repay::repay_debt;
 use risk_management::{
     can_be_liquidated, get_close_factor, get_liquidation_incentive,
     get_liquidation_incentive_amount, get_liquidation_threshold, get_max_liquidatable_amount,
     get_min_collateral_ratio, initialize_risk_management, is_emergency_paused, is_operation_paused,
-    require_min_collateral_ratio, set_emergency_pause, set_pause_switch, set_pause_switches,
-    set_risk_params, RiskConfig, RiskManagementError,
+    require_min_collateral_ratio, set_emergency_pause, set_pause_switch,
+    set_pause_switches, set_risk_params, RiskConfig, RiskManagementError,
 };
-
-mod withdraw;
 use withdraw::withdraw_collateral;
-
-mod repay;
-use repay::repay_debt;
-
-mod borrow;
-use borrow::borrow_asset;
 
 #[contract]
 pub struct HelloContract;

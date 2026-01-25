@@ -6,6 +6,7 @@ use crate::deposit::{
     emit_user_activity_tracked_event, update_protocol_analytics, update_user_analytics, Activity,
     DepositDataKey, Position, ProtocolAnalytics, UserAnalytics,
 };
+use crate::events::{log_repay, RepayEvent};
 
 /// Errors that can occur during repay operations
 #[contracterror]
@@ -270,14 +271,14 @@ pub fn repay_debt(
     })?;
 
     // Emit repay event
-    emit_repay_event(
+    log_repay(
         env,
-        &user,
-        asset,
-        repay_amount,
-        interest_paid,
-        principal_paid,
-        timestamp,
+        RepayEvent {
+            user: user.clone(),
+            asset: asset.clone(),
+            amount: repay_amount,
+            timestamp,
+        },
     );
 
     // Emit position updated event
@@ -377,34 +378,4 @@ fn update_protocol_analytics_repay(env: &Env, amount: i128) -> Result<(), RepayE
 
     env.storage().persistent().set(&analytics_key, &analytics);
     Ok(())
-}
-
-/// Emit repay event
-fn emit_repay_event(
-    env: &Env,
-    user: &Address,
-    asset: Option<Address>,
-    amount: i128,
-    interest_paid: i128,
-    principal_paid: i128,
-    timestamp: u64,
-) {
-    let topics = (Symbol::new(env, "repay"), user.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "user").into_val(env));
-    data.push_back(user.clone().into_val(env));
-    data.push_back(Symbol::new(env, "amount").into_val(env));
-    data.push_back(amount.into_val(env));
-    data.push_back(Symbol::new(env, "interest_paid").into_val(env));
-    data.push_back(interest_paid.into_val(env));
-    data.push_back(Symbol::new(env, "principal_paid").into_val(env));
-    data.push_back(principal_paid.into_val(env));
-    if let Some(asset_addr) = asset {
-        data.push_back(Symbol::new(env, "asset").into_val(env));
-        data.push_back(asset_addr.into_val(env));
-    }
-    data.push_back(Symbol::new(env, "timestamp").into_val(env));
-    data.push_back(timestamp.into_val(env));
-
-    env.events().publish(topics, data);
 }

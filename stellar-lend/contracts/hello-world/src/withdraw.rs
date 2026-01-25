@@ -6,6 +6,7 @@ use crate::deposit::{
     emit_user_activity_tracked_event, update_protocol_analytics, update_user_analytics, Activity,
     AssetParams, DepositDataKey, Position, ProtocolAnalytics, UserAnalytics,
 };
+use crate::events::{log_withdrawal, WithdrawalEvent};
 
 /// Errors that can occur during withdraw operations
 #[contracterror]
@@ -282,7 +283,15 @@ pub fn withdraw_collateral(
     })?;
 
     // Emit withdraw event
-    emit_withdraw_event(env, &user, asset, amount, timestamp);
+    log_withdrawal(
+        env,
+        WithdrawalEvent {
+            user: user.clone(),
+            asset: asset.clone(),
+            amount,
+            timestamp,
+        },
+    );
 
     // Emit position updated event
     emit_position_updated_event(env, &user, &position);
@@ -372,28 +381,4 @@ fn update_protocol_analytics_withdraw(env: &Env, amount: i128) -> Result<(), Wit
 
     env.storage().persistent().set(&analytics_key, &analytics);
     Ok(())
-}
-
-/// Emit withdraw event
-fn emit_withdraw_event(
-    env: &Env,
-    user: &Address,
-    asset: Option<Address>,
-    amount: i128,
-    timestamp: u64,
-) {
-    let topics = (Symbol::new(env, "withdraw"), user.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "user").into_val(env));
-    data.push_back(user.clone().into_val(env));
-    data.push_back(Symbol::new(env, "amount").into_val(env));
-    data.push_back(amount.into_val(env));
-    if let Some(asset_addr) = asset {
-        data.push_back(Symbol::new(env, "asset").into_val(env));
-        data.push_back(asset_addr.into_val(env));
-    }
-    data.push_back(Symbol::new(env, "timestamp").into_val(env));
-    data.push_back(timestamp.into_val(env));
-
-    env.events().publish(topics, data);
 }

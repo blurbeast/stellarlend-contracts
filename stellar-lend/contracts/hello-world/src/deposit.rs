@@ -1,6 +1,8 @@
 #![allow(unused)]
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
+use crate::events::{log_deposit, DepositEvent};
+
 /// Errors that can occur during deposit operations
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -300,7 +302,15 @@ pub fn deposit_collateral(
     )?;
 
     // Emit deposit event
-    emit_deposit_event(env, &user, asset, amount, timestamp);
+    log_deposit(
+        env,
+        DepositEvent {
+            user: user.clone(),
+            asset: asset.clone(),
+            amount,
+            timestamp,
+        },
+    );
 
     // Emit position updated event
     emit_position_updated_event(env, &user, &position);
@@ -428,30 +438,6 @@ pub fn add_activity_log(
 
     env.storage().persistent().set(&log_key, &log);
     Ok(())
-}
-
-/// Emit deposit event
-fn emit_deposit_event(
-    env: &Env,
-    user: &Address,
-    asset: Option<Address>,
-    amount: i128,
-    timestamp: u64,
-) {
-    let topics = (Symbol::new(env, "deposit"), user.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "user").into_val(env));
-    data.push_back(user.clone().into_val(env));
-    data.push_back(Symbol::new(env, "amount").into_val(env));
-    data.push_back(amount.into_val(env));
-    if let Some(asset_addr) = asset {
-        data.push_back(Symbol::new(env, "asset").into_val(env));
-        data.push_back(asset_addr.into_val(env));
-    }
-    data.push_back(Symbol::new(env, "timestamp").into_val(env));
-    data.push_back(timestamp.into_val(env));
-
-    env.events().publish(topics, data);
 }
 
 /// Emit position updated event

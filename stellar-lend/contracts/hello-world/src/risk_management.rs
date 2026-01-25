@@ -598,6 +598,8 @@ pub fn get_liquidation_incentive(env: &Env) -> Result<i128, RiskManagementError>
     Ok(config.liquidation_incentive)
 }
 
+
+
 /// Emit risk parameters updated event
 fn emit_risk_params_updated_event(env: &Env, caller: &Address, config: &RiskConfig) {
     let topics = (Symbol::new(env, "risk_params_updated"), caller.clone());
