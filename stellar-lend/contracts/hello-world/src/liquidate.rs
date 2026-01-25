@@ -246,26 +246,31 @@ pub fn liquidate(
     // Calculate total debt (principal + interest)
     let total_debt = calculate_debt_value(position.debt, position.borrow_interest)?;
 
-    // Get asset prices
-    // For native XLM (None), use default price of 1 (1:1 ratio)
-    // For token assets, try to get price from oracle, but fallback to 1 if not available
-    let debt_price = if let Some(ref debt_addr) = debt_asset {
-        get_asset_price(env, debt_addr)
+    // Get asset prices and calculate collateral value
+    // For native XLM (None), both assets are the same, so use 1:1 ratio
+    // For token assets, use oracle prices to convert between assets
+    let collateral_value = if debt_asset.is_none() && collateral_asset.is_none() {
+        // Both are native XLM - no price conversion needed
+        collateral_balance
     } else {
-        // Default price for native XLM (1:1)
-        1_00000000i128 // 1 XLM with 8 decimals
-    };
+        // Need to convert between different assets using prices
+        let debt_price = if let Some(ref debt_addr) = debt_asset {
+            get_asset_price(env, debt_addr)
+        } else {
+            // Default price for native XLM (1:1, no decimals)
+            1i128
+        };
 
-    let collateral_price = if let Some(ref collateral_addr) = collateral_asset {
-        get_asset_price(env, collateral_addr)
-    } else {
-        // Default price for native XLM (1:1)
-        1_00000000i128 // 1 XLM with 8 decimals
-    };
+        let collateral_price = if let Some(ref collateral_addr) = collateral_asset {
+            get_asset_price(env, collateral_addr)
+        } else {
+            // Default price for native XLM (1:1, no decimals)
+            1i128
+        };
 
-    // Calculate collateral value in debt asset terms
-    let collateral_value =
-        calculate_collateral_value(collateral_balance, collateral_price, debt_price)?;
+        // Calculate collateral value in debt asset terms
+        calculate_collateral_value(collateral_balance, collateral_price, debt_price)?
+    };
 
     // Check if position can be liquidated
     let can_liquidate = can_be_liquidated(env, collateral_value, total_debt)
@@ -301,11 +306,29 @@ pub fn liquidate(
     // Liquidator receives collateral worth debt_liquidated (in debt terms) + incentive
     // collateral_seized = (debt_liquidated * debt_price / collateral_price) * (1 + incentive_bps / 10000)
     // First, convert debt amount to collateral terms: debt_liquidated * debt_price / collateral_price
-    let collateral_value_liquidated = actual_debt_liquidated
-        .checked_mul(debt_price)
-        .ok_or(LiquidationError::Overflow)?
-        .checked_div(collateral_price)
-        .ok_or(LiquidationError::Overflow)?;
+    let collateral_value_liquidated = if debt_asset.is_none() && collateral_asset.is_none() {
+        // Both are native XLM - no price conversion needed
+        actual_debt_liquidated
+    } else {
+        // Need to convert between different assets using prices
+        let debt_price = if let Some(ref debt_addr) = debt_asset {
+            get_asset_price(env, debt_addr)
+        } else {
+            1i128 // Native XLM
+        };
+
+        let collateral_price = if let Some(ref collateral_addr) = collateral_asset {
+            get_asset_price(env, collateral_addr)
+        } else {
+            1i128 // Native XLM
+        };
+
+        actual_debt_liquidated
+            .checked_mul(debt_price)
+            .ok_or(LiquidationError::Overflow)?
+            .checked_div(collateral_price)
+            .ok_or(LiquidationError::Overflow)?
+    };
 
     // Apply incentive: collateral_seized = collateral_value_liquidated * (1 + incentive_bps / 10000)
     let collateral_seized = collateral_value_liquidated
