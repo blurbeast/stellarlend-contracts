@@ -15,7 +15,7 @@ impl From<SdkError> for GovernanceError {
     fn from(error: SdkError) -> Self {
         // Attempt to get the ScError from the SdkError
         let error_code_val = error.get_code();
-        let error_code: u32 = error_code_val as u32;
+        let error_code: u32 = error_code_val;
 
         match error_code {
             100 => GovernanceError::AlreadyInitialized,
