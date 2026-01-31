@@ -21,6 +21,17 @@ use risk_management::{
 };
 use withdraw::withdraw_collateral;
 
+mod repay;
+use repay::repay_debt;
+
+mod borrow;
+use borrow::borrow_asset;
+
+mod analytics;
+use analytics::{
+    generate_protocol_report, generate_user_report, get_recent_activity, get_user_activity_feed,
+    AnalyticsError, ProtocolReport, UserReport,
+};
 mod cross_asset;
 use cross_asset::{
     cross_asset_borrow, cross_asset_deposit, cross_asset_repay, cross_asset_withdraw,
@@ -481,7 +492,6 @@ impl HelloContract {
     /// - Minimum collateral ratio requirements
     /// - Pause switch checks
     /// - Maximum borrow limits
-    ///
     /// # Arguments
     /// * `user` - The address of the user borrowing assets
     /// * `asset` - The address of the asset contract to borrow (None for native XLM)
@@ -500,255 +510,30 @@ impl HelloContract {
         borrow_asset(&env, user, asset, amount).unwrap_or_else(|e| panic!("Borrow error: {:?}", e))
     }
 
-    // --- Governance Proxy Functions ---
-
-    fn get_governance_client(env: &Env) -> GovernanceContractClient<'static> {
-        let governance_id: Address = env
-            .storage()
-            .instance()
-            .get(&ContractDataKey::GovernanceAddress)
-            .expect("Governance contract not initialized");
-        GovernanceContractClient::new(env, &governance_id)
+    pub fn get_protocol_report(env: Env) -> Result<ProtocolReport, AnalyticsError> {
+        generate_protocol_report(&env)
     }
 
-    /// Proxies to GovernanceContract::propose
-    pub fn gov_propose(
+    pub fn get_user_report(env: Env, user: Address) -> Result<UserReport, AnalyticsError> {
+        generate_user_report(&env, &user)
+    }
+
+    pub fn get_recent_activity(
         env: Env,
-        proposer: Address,
-        description: soroban_sdk::String,
-        action: Action,
-        voting_period_seconds: u64,
-        grace_period_seconds: u64,
-    ) -> Result<u32, RiskManagementError> {
-        // Return RiskManagementError for consistency
-        Self::get_governance_client(&env)
-            .try_propose(
-                &proposer,
-                &description,
-                &action,
-                &voting_period_seconds,
-                &grace_period_seconds,
-            )
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
+        limit: u32,
+        offset: u32,
+    ) -> Result<soroban_sdk::Vec<analytics::ActivityEntry>, AnalyticsError> {
+        get_recent_activity(&env, limit, offset)
     }
 
-    /// Proxies to GovernanceContract::vote
-    pub fn gov_vote(env: Env, voter: Address, proposal_id: u32) -> Result<(), RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_vote(&voter, &proposal_id)
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::execute
-    pub fn gov_execute(env: Env, proposal_id: u32) -> Result<(), RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_execute(&proposal_id)
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::get_proposal
-    pub fn gov_get_proposal(env: Env, proposal_id: u32) -> Result<Proposal, RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_get_proposal(&proposal_id)
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::add_signer
-    pub fn gov_add_signer(
-        env: Env,
-        caller: Address,
-        new_signer: Address,
-    ) -> Result<(), RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_add_signer(&caller, &new_signer)
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::remove_signer
-    pub fn gov_remove_signer(
-        env: Env,
-        caller: Address,
-        signer_to_remove: Address,
-    ) -> Result<(), RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_remove_signer(&caller, &signer_to_remove)
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::set_threshold
-    pub fn gov_set_threshold(
-        env: Env,
-        caller: Address,
-        new_threshold: u32,
-    ) -> Result<(), RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_set_threshold(&caller, &new_threshold)
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::get_signers
-    pub fn gov_get_signers(env: Env) -> Result<soroban_sdk::Vec<Address>, RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_get_signers()
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::get_threshold
-    pub fn gov_get_threshold(env: Env) -> Result<u32, RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_get_threshold()
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::get_admin
-    pub fn gov_get_admin(env: Env) -> Result<Address, RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_get_admin()
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-
-    /// Proxies to GovernanceContract::transfer_admin
-    pub fn gov_transfer_admin(
-        env: Env,
-        caller: Address,
-        new_admin: Address,
-    ) -> Result<(), RiskManagementError> {
-        Self::get_governance_client(&env)
-            .try_transfer_admin(&caller, &new_admin)
-            .map_err(|_| RiskManagementError::GovernanceRequired)?
-            .map_err(|_| RiskManagementError::GovernanceRequired)
-    }
-    // ============================================================================
-    // CROSS-ASSET OPERATIONS
-    // ============================================================================
-
-    /// Initialize admin one time
-    pub fn initialize_ca(env: Env, admin: Address) -> Result<(), CrossAssetError> {
-        initialize(&env, admin)
-    }
-
-    /// Initialize asset configuration (admin only)
-    pub fn initialize_asset(
-        env: Env,
-        asset: Option<Address>,
-        config: AssetConfig,
-    ) -> Result<(), CrossAssetError> {
-        initialize_asset(&env, asset, config)
-    }
-
-    /// Update asset parameters (admin only)
-    #[allow(clippy::too_many_arguments)]
-    pub fn update_asset_config(
-        env: Env,
-        asset: Option<Address>,
-        collateral_factor: Option<i128>,
-        borrow_factor: Option<i128>,
-        max_supply: Option<i128>,
-        max_borrow: Option<i128>,
-        can_collateralize: Option<bool>,
-        can_borrow: Option<bool>,
-    ) -> Result<(), CrossAssetError> {
-        update_asset_config(
-            &env,
-            asset,
-            collateral_factor,
-            borrow_factor,
-            max_supply,
-            max_borrow,
-            can_collateralize,
-            can_borrow,
-        )
-    }
-
-    /// Update asset price (admin)
-    pub fn update_asset_price(
-        env: Env,
-        asset: Option<Address>,
-        price: i128,
-    ) -> Result<(), CrossAssetError> {
-        update_asset_price(&env, asset, price)
-    }
-
-    /// Get user position for specific asset
-    pub fn get_user_asset_position(
+    pub fn get_user_activity(
         env: Env,
         user: Address,
-        asset: Option<Address>,
-    ) -> AssetPosition {
-        get_user_asset_position(&env, &user, asset)
+        limit: u32,
+        offset: u32,
+    ) -> Result<soroban_sdk::Vec<analytics::ActivityEntry>, AnalyticsError> {
+        get_user_activity_feed(&env, &user, limit, offset)
     }
-
-    /// Get unified position summary across all assets
-    /// Returns total collateral, debt, health factor, and liquidation status
-    pub fn get_user_position_summary(env: Env, user: Address) -> UserPositionSummary {
-        get_user_position_summary(&env, &user)
-            .unwrap_or_else(|e| panic!("User position summary error: {:?}", e))
-    }
-
-    /// Deposit collateral with supply cap validation
-    pub fn ca_deposit_collateral(
-        env: Env,
-        user: Address,
-        asset: Option<Address>,
-        amount: i128,
-    ) -> Result<AssetPosition, CrossAssetError> {
-        cross_asset_deposit(&env, user, asset, amount)
-    }
-
-    /// Withdraw collateral with health factor check
-    pub fn ca_withdraw_collateral(
-        env: Env,
-        user: Address,
-        asset: Option<Address>,
-        amount: i128,
-    ) -> Result<AssetPosition, CrossAssetError> {
-        cross_asset_withdraw(&env, user, asset, amount)
-    }
-
-    /// Borrow assets against multi-asset collateral
-    pub fn ca_borrow_asset(
-        env: Env,
-        user: Address,
-        asset: Option<Address>,
-        amount: i128,
-    ) -> Result<AssetPosition, CrossAssetError> {
-        cross_asset_borrow(&env, user, asset, amount)
-    }
-
-    /// Repay debt (interest paid first, then principal)
-    pub fn ca_repay_debt(
-        env: Env,
-        user: Address,
-        asset: Option<Address>,
-        amount: i128,
-    ) -> Result<AssetPosition, CrossAssetError> {
-        cross_asset_repay(&env, user, asset, amount)
-    }
-
-    /// Get list of all configured assets
-    pub fn get_asset_list(env: Env) -> Vec<AssetKey> {
-        get_asset_list(&env)
-    }
-
-    /// Get asset configuration
-    pub fn get_asset_config(
-        env: Env,
-        asset: Option<Address>,
-    ) -> Result<AssetConfig, CrossAssetError> {
-        get_asset_config_by_address(&env, asset)
-    }
-
-    // ============================================================================
     /// Update price feed from oracle
     ///
     /// Updates the price for an asset from an oracle source with validation.

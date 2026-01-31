@@ -1,3 +1,8 @@
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    token, Address, Env, Symbol,
+};
+use crate::{deposit, HelloContract, HelloContractClient};
 use crate::deposit::{DepositDataKey, Position, ProtocolAnalytics, UserAnalytics};
 use crate::{deposit, HelloContract, HelloContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Env, Symbol};
@@ -1153,12 +1158,313 @@ fn test_withdraw_collateral_maximum_withdrawal() {
     // Withdraw all (maximum withdrawal when no debt)
     let result = client.withdraw_collateral(&user, &None, &deposit_amount);
 
-    // Verify result
     assert_eq!(result, 0);
 
-    // Verify collateral balance is zero
+    // Verify collateral balance
     let balance = get_collateral_balance(&env, &contract_id, &user);
     assert_eq!(balance, 0);
+}
+
+#[test]
+fn test_analytics_get_tvl() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+
+    client.deposit_collateral(&user1, &None, &1000);
+    client.deposit_collateral(&user2, &None, &500);
+
+    let report = client.get_protocol_report();
+    assert_eq!(report.metrics.total_value_locked, 1500);
+    assert_eq!(report.metrics.total_deposits, 1500);
+}
+
+#[test]
+fn test_analytics_get_tvl_empty() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let report = client.get_protocol_report();
+    assert_eq!(report.metrics.total_value_locked, 0);
+    assert_eq!(report.metrics.total_deposits, 0);
+}
+
+#[test]
+fn test_analytics_protocol_utilization() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    client.deposit_collateral(&user, &None, &1000);
+
+    let report = client.get_protocol_report();
+    assert_eq!(report.metrics.utilization_rate, 0);
+}
+
+#[test]
+fn test_analytics_protocol_utilization_no_borrows() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    client.deposit_collateral(&user, &None, &1000);
+
+    let report = client.get_protocol_report();
+    assert_eq!(report.metrics.utilization_rate, 0);
+}
+
+#[test]
+fn test_analytics_protocol_report_generation() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    client.deposit_collateral(&user, &None, &1000);
+
+    let report = client.get_protocol_report();
+
+    assert_eq!(report.metrics.total_deposits, 1000);
+    assert_eq!(report.metrics.total_value_locked, 1000);
+
+}
+
+#[test]
+fn test_analytics_user_report_generation() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    client.deposit_collateral(&user, &None, &1000);
+
+    let report = client.get_user_report(&user);
+
+    assert_eq!(report.metrics.collateral, 1000);
+    assert_eq!(report.metrics.debt, 0);
+    assert_eq!(report.metrics.total_deposits, 1000);
+    assert_eq!(report.position.collateral, 1000);
+    assert_eq!(report.position.debt, 0);
+}
+
+#[test]
+fn test_analytics_health_factor_no_debt() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    client.deposit_collateral(&user, &None, &1000);
+
+    let report = client.get_user_report(&user);
+    assert_eq!(report.metrics.health_factor, i128::MAX);
+}
+
+#[test]
+fn test_analytics_get_recent_activity() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    client.deposit_collateral(&user, &None, &100);
+    client.deposit_collateral(&user, &None, &200);
+    client.deposit_collateral(&user, &None, &300);
+
+    let activities = client.get_recent_activity(&10, &0);
+    assert!(!activities.is_empty());
+}
+
+#[test]
+fn test_analytics_get_recent_activity_pagination() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    for i in 1..=10 {
+        client.deposit_collateral(&user, &None, &(i * 100));
+    }
+
+    let activities_page1 = client.get_recent_activity(&5, &0);
+    assert_eq!(activities_page1.len(), 5);
+
+    let activities_page2 = client.get_recent_activity(&5, &5);
+    assert_eq!(activities_page2.len(), 5);
+}
+
+#[test]
+fn test_analytics_get_user_activity_feed() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+
+    client.deposit_collateral(&user1, &None, &100);
+    client.deposit_collateral(&user2, &None, &200);
+    client.deposit_collateral(&user1, &None, &300);
+
+    let user1_activities = client.get_user_activity(&user1, &10, &0);
+    assert!(user1_activities.len() >= 2);
+}
+
+#[test]
+fn test_analytics_empty_activity_feed() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let activities = client.get_recent_activity(&10, &0);
+    assert_eq!(activities.len(), 0);
+}
+
+#[test]
+fn test_analytics_activity_ordering() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    client.deposit_collateral(&user, &None, &100);
+    env.ledger().with_mut(|li| li.timestamp += 1);
+    client.deposit_collateral(&user, &None, &200);
+    env.ledger().with_mut(|li| li.timestamp += 1);
+    client.deposit_collateral(&user, &None, &300);
+
+    let activities = client.get_recent_activity(&10, &0);
+    assert!(activities.len() >= 3);
+
+    if activities.len() >= 2 {
+        assert!(activities.get(0).unwrap().timestamp >= activities.get(1).unwrap().timestamp);
+    }
+}
+
+#[test]
+fn test_analytics_large_activity_dataset() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    for i in 1..=50 {
+        client.deposit_collateral(&user, &None, &(i * 10));
+    }
+
+    let activities = client.get_recent_activity(&100, &0);
+    assert!(!activities.is_empty());
+    assert!(activities.len() <= 100);
+}
+
+#[test]
+fn test_analytics_user_position_summary() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    client.deposit_collateral(&user, &None, &1000);
+
+    let report = client.get_user_report(&user);
+    assert_eq!(report.position.collateral, 1000);
+    assert_eq!(report.position.debt, 0);
+}
+
+#[test]
+fn test_analytics_user_activity_summary() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    client.deposit_collateral(&user, &None, &500);
+    client.deposit_collateral(&user, &None, &300);
+
+    let report = client.get_user_report(&user);
+    assert_eq!(report.metrics.total_deposits, 800);
+    assert!(report.metrics.transaction_count >= 2);
+}
+
+#[test]
+fn test_analytics_multiple_users() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user1 = Address::generate(&env);
+    let user2 = Address::generate(&env);
+    let user3 = Address::generate(&env);
+
+    client.deposit_collateral(&user1, &None, &1000);
+    client.deposit_collateral(&user2, &None, &2000);
+    client.deposit_collateral(&user3, &None, &3000);
+
+    let protocol_report = client.get_protocol_report();
+    assert_eq!(protocol_report.metrics.total_value_locked, 6000);
+
+    let user1_report = client.get_user_report(&user1);
+    assert_eq!(user1_report.metrics.total_deposits, 1000);
+
+    let user2_report = client.get_user_report(&user2);
+    assert_eq!(user2_report.metrics.total_deposits, 2000);
+}
+
+#[test]
+fn test_analytics_with_no_users() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let report = client.get_protocol_report();
+    assert_eq!(report.metrics.total_value_locked, 0);
+    assert_eq!(report.metrics.total_deposits, 0);
+    assert_eq!(report.metrics.total_borrows, 0);
+    assert_eq!(report.metrics.utilization_rate, 0);
+}
+
+#[test]
+fn test_analytics_pagination_edge_cases() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+    client.deposit_collateral(&user, &None, &100);
+    client.deposit_collateral(&user, &None, &200);
+
+    let activities = client.get_recent_activity(&10, &100);
+    assert_eq!(activities.len(), 0);
+}
+
+#[test]
+fn test_analytics_user_metrics_accuracy() {
+    let env = create_test_env();
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(&env, &contract_id);
+
+    let user = Address::generate(&env);
+
+    client.deposit_collateral(&user, &None, &1000);
+    client.deposit_collateral(&user, &None, &500);
+
+    let report = client.get_user_report(&user);
+
+    assert_eq!(report.metrics.total_deposits, 1500);
+    assert_eq!(report.metrics.collateral, 1500);
+    assert!(report.metrics.activity_score > 0);
 }
 
 #[test]
