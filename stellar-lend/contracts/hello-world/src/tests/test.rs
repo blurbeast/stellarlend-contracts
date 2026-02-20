@@ -4814,9 +4814,11 @@ fn test_analytics_protocol_report_complete() {
     assert!(report.metrics.total_borrows >= 0);
     assert!(report.metrics.utilization_rate >= 0);
     assert!(report.metrics.average_borrow_rate >= 0);
-    assert!(report.metrics.total_users >= 0);
-    assert!(report.metrics.total_transactions >= 0);
-    assert!(report.timestamp > 0 || report.timestamp == 0); // timestamp is valid
+    // total_users and total_transactions are u32 - always valid
+    let _ = report.metrics.total_users;
+    let _ = report.metrics.total_transactions;
+    // timestamp is u64 - always valid
+    let _ = report.timestamp;
 }
 
 /// Test user report contains all required fields
