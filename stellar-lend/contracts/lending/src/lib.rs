@@ -7,35 +7,23 @@ use borrow::{
     BorrowError, CollateralPosition, DebtPosition,
 };
 
+mod cross_asset;
+use cross_asset::{
+    borrow_asset, deposit_collateral_asset, get_cross_position_summary, repay_asset,
+    set_asset_params, withdraw_asset, AssetParams, CrossAssetError, PositionSummary,
+};
+
 #[cfg(test)]
 mod borrow_test;
+
+#[cfg(test)]
+mod cross_asset_test;
 
 #[contract]
 pub struct LendingContract;
 
 #[contractimpl]
 impl LendingContract {
-    /// Borrow assets against deposited collateral
-    ///
-    /// Allows users to borrow assets by providing collateral. The collateral ratio
-    /// must meet minimum requirements (150%). Interest accrues over time at 5% APY.
-    ///
-    /// # Arguments
-    /// * `user` - The borrower's address (must authorize)
-    /// * `asset` - The asset to borrow
-    /// * `amount` - The amount to borrow
-    /// * `collateral_asset` - The collateral asset
-    /// * `collateral_amount` - The collateral amount
-    ///
-    /// # Returns
-    /// Returns Ok(()) on success
-    ///
-    /// # Errors
-    /// - `InsufficientCollateral` - Collateral ratio below 150%
-    /// - `DebtCeilingReached` - Protocol debt ceiling exceeded
-    /// - `ProtocolPaused` - Protocol is paused
-    /// - `InvalidAmount` - Amount or collateral is zero or negative
-    /// - `BelowMinimumBorrow` - Amount below minimum borrow threshold
     pub fn borrow(
         env: Env,
         user: Address,
@@ -54,13 +42,6 @@ impl LendingContract {
         )
     }
 
-    /// Initialize borrow settings (admin only)
-    ///
-    /// Sets up the protocol's debt ceiling and minimum borrow amount.
-    ///
-    /// # Arguments
-    /// * `debt_ceiling` - Maximum total debt allowed in the protocol
-    /// * `min_borrow_amount` - Minimum amount that can be borrowed
     pub fn initialize_borrow_settings(
         env: Env,
         debt_ceiling: i128,
@@ -69,39 +50,70 @@ impl LendingContract {
         initialize_borrow_settings(&env, debt_ceiling, min_borrow_amount)
     }
 
-    /// Set protocol pause state (admin only)
-    ///
-    /// Pauses or unpauses the borrow functionality.
-    ///
-    /// # Arguments
-    /// * `paused` - True to pause, false to unpause
     pub fn set_paused(env: Env, paused: bool) -> Result<(), BorrowError> {
         set_paused(&env, paused)
     }
 
-    /// Get user's debt position
-    ///
-    /// Returns the user's current debt including accrued interest.
-    ///
-    /// # Arguments
-    /// * `user` - The user's address
-    ///
-    /// # Returns
-    /// DebtPosition with borrowed amount, interest, and last update time
     pub fn get_user_debt(env: Env, user: Address) -> DebtPosition {
         get_user_debt(&env, &user)
     }
 
-    /// Get user's collateral position
-    ///
-    /// Returns the user's current collateral.
-    ///
-    /// # Arguments
-    /// * `user` - The user's address
-    ///
-    /// # Returns
-    /// CollateralPosition with amount and asset
     pub fn get_user_collateral(env: Env, user: Address) -> CollateralPosition {
         get_user_collateral(&env, &user)
+    }
+
+    pub fn set_asset_params(
+        env: Env,
+        asset: Address,
+        params: AssetParams,
+    ) {
+        set_asset_params(&env, asset, params).unwrap();
+    }
+
+    pub fn deposit_collateral_asset(
+        env: Env,
+        user: Address,
+        asset: Address,
+        amount: i128,
+    ) {
+        deposit_collateral_asset(&env, user, asset, amount).unwrap();
+    }
+
+    pub fn borrow_asset(
+        env: Env,
+        user: Address,
+        asset: Address,
+        amount: i128,
+    ) {
+        borrow_asset(&env, user, asset, amount).unwrap();
+    }
+
+    pub fn repay_asset(
+        env: Env,
+        user: Address,
+        asset: Address,
+        amount: i128,
+    ) {
+        repay_asset(&env, user, asset, amount).unwrap();
+    }
+
+    pub fn withdraw_asset(
+        env: Env,
+        user: Address,
+        asset: Address,
+        amount: i128,
+    ) {
+        withdraw_asset(&env, user, asset, amount).unwrap();
+    }
+
+    pub fn get_cross_position_summary(
+        env: Env,
+        user: Address,
+    ) -> PositionSummary {
+        get_cross_position_summary(&env, user).unwrap()
+    }
+
+    pub fn initialize_admin(env: Env, admin: Address) {
+        cross_asset::initialize_admin(&env, admin);
     }
 }
