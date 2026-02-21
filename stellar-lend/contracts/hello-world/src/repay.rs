@@ -6,7 +6,7 @@ use crate::deposit::{
     emit_user_activity_tracked_event, update_protocol_analytics, update_user_analytics, Activity,
     DepositDataKey, Position, ProtocolAnalytics, UserAnalytics,
 };
-use crate::events::{log_repay, RepayEvent};
+use crate::events::{emit_repay, RepayEvent};
 
 /// Errors that can occur during repay operations
 #[contracterror]
@@ -260,7 +260,7 @@ pub fn repay_debt(
     })?;
 
     // Emit repay event
-    log_repay(
+    emit_repay(
         env,
         RepayEvent {
             user: user.clone(),
