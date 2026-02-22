@@ -189,7 +189,8 @@ fn test_withdraw_ratio_violation_with_debt() {
     setup_with_deposit(&env, &client, &user, &asset, 100_000);
 
     // Borrow 10,000 against 15,000 collateral (borrow module tracks separately)
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
     client.borrow(&user, &borrow_asset, &10_000, &collateral_asset, &15_000);
 
     // Try to withdraw 90,000 -> remaining 10,000 vs debt 10,000 * 1.5 = 15,000 -> fail
@@ -209,7 +210,8 @@ fn test_withdraw_ratio_valid_with_debt() {
     setup_with_deposit(&env, &client, &user, &asset, 100_000);
 
     // Borrow 10,000 against 15,000 collateral
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
     client.borrow(&user, &borrow_asset, &10_000, &collateral_asset, &15_000);
 
     // Withdraw 80,000 -> remaining 20,000 vs debt 10,000 * 1.5 = 15,000 -> pass
@@ -229,7 +231,8 @@ fn test_withdraw_ratio_boundary_exact_150_percent() {
     setup_with_deposit(&env, &client, &user, &asset, 100_000);
 
     // Borrow 10,000 (min collateral = 10,000 * 1.5 = 15,000)
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
     client.borrow(&user, &borrow_asset, &10_000, &collateral_asset, &15_000);
 
     // Withdraw exactly to 15,000 remaining -> should succeed (exactly 150%)
@@ -251,7 +254,8 @@ fn test_withdraw_ratio_boundary_just_below() {
     setup_with_deposit(&env, &client, &user, &asset, 30_000);
 
     // Borrow 10,000 (min collateral = 15,000)
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
     client.borrow(&user, &borrow_asset, &10_000, &collateral_asset, &15_000);
 
     // Withdraw 15,100 -> remaining 14,900 < 15,000 -> fail
@@ -286,7 +290,8 @@ fn test_withdraw_max_with_debt() {
     setup_with_deposit(&env, &client, &user, &asset, 100_000);
 
     // Borrow 10,000 (min collateral = 15,000)
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let admin = Address::generate(&env);
+    client.initialize(&admin, &1_000_000_000, &1000);
     client.borrow(&user, &borrow_asset, &10_000, &collateral_asset, &15_000);
 
     // Max safe withdrawal = 100,000 - 15,000 = 85,000

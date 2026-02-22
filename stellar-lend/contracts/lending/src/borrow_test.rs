@@ -14,12 +14,12 @@ fn setup_test(
     Address,
 ) {
     let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
+    let client = LendingContractClient::new(env, &contract_id);
 
-    let admin = Address::generate(&env);
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
+    let admin = Address::generate(env);
+    let user = Address::generate(env);
+    let asset = Address::generate(env);
+    let collateral_asset = Address::generate(env);
 
     client.initialize(&admin, &1_000_000_000, &1000);
     (client, admin, user, asset, collateral_asset)

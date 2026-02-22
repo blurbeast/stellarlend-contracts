@@ -10,6 +10,7 @@ pub enum FlashLoanError {
     Unauthorized = 3,
     InvalidFee = 4,
     CallbackFailed = 5,
+    Reentrancy = 6,
 }
 
 /// Storage keys for flash loan data
@@ -17,6 +18,7 @@ pub enum FlashLoanError {
 #[derive(Clone)]
 pub enum FlashLoanDataKey {
     FlashLoanFeeBps,
+    ReentrancyGuard,
 }
 
 const MAX_FEE_BPS: i128 = 1000; // 10% maximum fee
@@ -39,6 +41,12 @@ pub fn flash_loan(
     if amount <= 0 {
         return Err(FlashLoanError::InvalidAmount);
     }
+
+    let guard_key = FlashLoanDataKey::ReentrancyGuard;
+    if env.storage().instance().get(&guard_key).unwrap_or(false) {
+        return Err(FlashLoanError::Reentrancy);
+    }
+    env.storage().instance().set(&guard_key, &true);
 
     let fee = calculate_fee(env, amount);
 
@@ -64,11 +72,16 @@ pub fn flash_loan(
     );
 
     if !callback_result {
+        env.storage().instance().set(&guard_key, &false);
         return Err(FlashLoanError::CallbackFailed);
     }
 
     // 3. Verify repayment
     let final_balance = token_client.balance(&env.current_contract_address());
+
+    // Clear the reentrancy guard
+    env.storage().instance().set(&guard_key, &false);
+
     if final_balance < initial_balance + fee {
         return Err(FlashLoanError::InsufficientRepayment);
     }
@@ -79,12 +92,12 @@ pub fn flash_loan(
 /// Calculate the fee for a flash loan
 fn calculate_fee(env: &Env, amount: i128) -> i128 {
     let fee_bps = get_flash_loan_fee_bps(env);
-    amount.saturating_mul(fee_bps as i128).saturating_div(10000)
+    amount.saturating_mul(fee_bps).saturating_div(10000)
 }
 
 /// Set the flash loan fee in basis points
 pub fn set_flash_loan_fee_bps(env: &Env, fee_bps: i128) -> Result<(), FlashLoanError> {
-    if fee_bps < 0 || fee_bps > MAX_FEE_BPS {
+    if !(0..=MAX_FEE_BPS).contains(&fee_bps) {
         return Err(FlashLoanError::InvalidFee);
     }
     env.storage()

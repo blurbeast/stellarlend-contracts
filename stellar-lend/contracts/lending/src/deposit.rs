@@ -16,11 +16,12 @@ pub enum DepositError {
 /// Storage keys for deposit-related data
 #[contracttype]
 #[derive(Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum DepositDataKey {
-    DepositUserCollateral(Address),
-    DepositTotalAmount,
-    DepositCapAmount,
-    DepositMinAmount,
+    UserCollateral(Address),
+    TotalAmount,
+    CapAmount,
+    MinAmount,
 }
 
 /// User deposit position
@@ -107,10 +108,10 @@ pub fn initialize_deposit_settings(
 ) -> Result<(), DepositError> {
     env.storage()
         .persistent()
-        .set(&DepositDataKey::DepositCapAmount, &deposit_cap);
+        .set(&DepositDataKey::CapAmount, &deposit_cap);
     env.storage()
         .persistent()
-        .set(&DepositDataKey::DepositMinAmount, &min_deposit_amount);
+        .set(&DepositDataKey::MinAmount, &min_deposit_amount);
     Ok(())
 }
 
@@ -121,7 +122,7 @@ pub fn get_user_collateral(env: &Env, user: &Address, asset: &Address) -> Deposi
 fn get_deposit_position(env: &Env, user: &Address, asset: &Address) -> DepositCollateral {
     env.storage()
         .persistent()
-        .get(&DepositDataKey::DepositUserCollateral(user.clone()))
+        .get(&DepositDataKey::UserCollateral(user.clone()))
         .unwrap_or(DepositCollateral {
             amount: 0,
             asset: asset.clone(),
@@ -130,36 +131,35 @@ fn get_deposit_position(env: &Env, user: &Address, asset: &Address) -> DepositCo
 }
 
 fn save_deposit_position(env: &Env, user: &Address, position: &DepositCollateral) {
-    env.storage().persistent().set(
-        &DepositDataKey::DepositUserCollateral(user.clone()),
-        position,
-    );
+    env.storage()
+        .persistent()
+        .set(&DepositDataKey::UserCollateral(user.clone()), position);
 }
 
 fn get_total_deposits(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&DepositDataKey::DepositTotalAmount)
+        .get(&DepositDataKey::TotalAmount)
         .unwrap_or(0)
 }
 
 fn set_total_deposits(env: &Env, amount: i128) {
     env.storage()
         .persistent()
-        .set(&DepositDataKey::DepositTotalAmount, &amount);
+        .set(&DepositDataKey::TotalAmount, &amount);
 }
 
 fn get_deposit_cap(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&DepositDataKey::DepositCapAmount)
+        .get(&DepositDataKey::CapAmount)
         .unwrap_or(i128::MAX)
 }
 
 fn get_min_deposit_amount(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&DepositDataKey::DepositMinAmount)
+        .get(&DepositDataKey::MinAmount)
         .unwrap_or(0)
 }
 

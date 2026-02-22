@@ -39,6 +39,7 @@ pub enum BorrowError {
 /// Storage keys for protocol-wide data.
 #[contracttype]
 #[derive(Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum BorrowDataKey {
     /// Protocol admin address
     ProtocolAdmin,

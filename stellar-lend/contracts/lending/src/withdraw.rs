@@ -1,6 +1,6 @@
 use soroban_sdk::{contracterror, contracttype, Address, Env, Symbol};
 
-use crate::deposit::{CollateralPosition, DepositDataKey};
+use crate::deposit::{DepositCollateral, DepositDataKey};
 
 /// Errors that can occur during withdraw operations
 #[contracterror]
@@ -54,7 +54,7 @@ pub fn withdraw(
 ) -> Result<i128, WithdrawError> {
     user.require_auth();
 
-    if is_paused(env) {
+    if is_paused(env) || crate::pause::is_paused(env, crate::pause::PauseType::Withdraw) {
         return Err(WithdrawError::WithdrawPaused);
     }
 
@@ -80,7 +80,7 @@ pub fn withdraw(
 
     validate_collateral_ratio_after_withdraw(env, &user, new_amount)?;
 
-    let updated_position = CollateralPosition {
+    let updated_position = DepositCollateral {
         amount: new_amount,
         asset: asset.clone(),
         last_deposit_time: position.last_deposit_time,
@@ -108,7 +108,7 @@ fn validate_collateral_ratio_after_withdraw(
     let debt_position: Option<DebtPosition> = env
         .storage()
         .persistent()
-        .get(&BorrowDataKey::UserDebt(user.clone()));
+        .get(&BorrowDataKey::BorrowUserDebt(user.clone()));
 
     if let Some(debt) = debt_position {
         let total_debt = debt
@@ -154,18 +154,18 @@ pub fn set_withdraw_paused(env: &Env, paused: bool) -> Result<(), WithdrawError>
     Ok(())
 }
 
-fn get_collateral_position(env: &Env, user: &Address, asset: &Address) -> CollateralPosition {
+fn get_collateral_position(env: &Env, user: &Address, asset: &Address) -> DepositCollateral {
     env.storage()
         .persistent()
         .get(&DepositDataKey::UserCollateral(user.clone()))
-        .unwrap_or(CollateralPosition {
+        .unwrap_or(DepositCollateral {
             amount: 0,
             asset: asset.clone(),
             last_deposit_time: env.ledger().timestamp(),
         })
 }
 
-fn save_collateral_position(env: &Env, user: &Address, position: &CollateralPosition) {
+fn save_collateral_position(env: &Env, user: &Address, position: &DepositCollateral) {
     env.storage()
         .persistent()
         .set(&DepositDataKey::UserCollateral(user.clone()), position);
@@ -174,14 +174,14 @@ fn save_collateral_position(env: &Env, user: &Address, position: &CollateralPosi
 fn get_total_deposits(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&DepositDataKey::TotalDeposits)
+        .get(&DepositDataKey::TotalAmount)
         .unwrap_or(0)
 }
 
 fn set_total_deposits(env: &Env, amount: i128) {
     env.storage()
         .persistent()
-        .set(&DepositDataKey::TotalDeposits, &amount);
+        .set(&DepositDataKey::TotalAmount, &amount);
 }
 
 fn get_min_withdraw_amount(env: &Env) -> i128 {

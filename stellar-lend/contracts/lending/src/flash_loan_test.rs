@@ -1,5 +1,5 @@
 use super::*;
-use soroban_sdk::{testutils::Address as _, token, Address, Bytes, Env, Symbol};
+use soroban_sdk::{testutils::Address as _, token, Address, Bytes, Env};
 
 // Mock receiver contract that implements the flash loan callback
 #[contract]
@@ -129,4 +129,52 @@ fn test_set_flash_loan_fee_too_high() {
     client.initialize(&admin, &1_000_000_000, &1000);
 
     client.set_flash_loan_fee_bps(&2000); // Exceeds MAX_FEE_BPS (1000)
+}
+
+// Mock receiver contract that attempts reentrancy
+#[contract]
+pub struct ReentrantFlashLoanReceiver;
+
+#[contractimpl]
+impl ReentrantFlashLoanReceiver {
+    pub fn on_flash_loan(
+        env: Env,
+        initiator: Address,
+        asset: Address,
+        _amount: i128,
+        _fee: i128,
+        _params: Bytes,
+    ) -> bool {
+        let client = LendingContractClient::new(&env, &initiator);
+        client.flash_loan(
+            &env.current_contract_address(),
+            &asset,
+            &100,
+            &Bytes::new(&env),
+        );
+        true
+    }
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Context, InvalidAction)")]
+fn test_flash_loan_reentrancy() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(LendingContract, ());
+    let client = LendingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let asset = env.register_stellar_asset_contract(admin.clone());
+    let token_admin = token::StellarAssetClient::new(&env, &asset);
+
+    let receiver_id = env.register(ReentrantFlashLoanReceiver, ());
+    let receiver_address = receiver_id.clone();
+
+    client.initialize(&admin, &1_000_000_000, &1000);
+    token_admin.mint(&contract_id, &100_000);
+
+    let amount = 10_000;
+    client.flash_loan(&receiver_address, &asset, &amount, &Bytes::new(&env));
 }
